@@ -15,14 +15,14 @@ fi
 mkdir $BACKUP_FOLDER;
 
 logger " "
-logger "###################################################################"
+logger "#########################################################"
 logger " "
-logger "       DEMARRAGE DE LA PROCEDURE DE SAUVEGARDE DU SYSTEME          "
+logger "       STARTING THE SYSTEM FILES BACKUP PROCESS          "
 logger " "
-logger "###################################################################"
+logger "#########################################################"
 logger " "
 
-logger " -> Sauvegarde des répertoires importants"
+logger " -> Backup important directories"
 rsync $OPTS /home          $BACKUP_FOLDER 2> $ERROR_FILE
 rsync $OPTS /etc           $BACKUP_FOLDER 2> $ERROR_FILE
 rsync $OPTS /var/lib/mysql $BACKUP_FOLDER 2> $ERROR_FILE
@@ -30,47 +30,46 @@ rsync $OPTS /var/named     $BACKUP_FOLDER 2> $ERROR_FILE
 rsync $OPTS /var/ossec     $BACKUP_FOLDER 2> $ERROR_FILE
 rsync $OPTS /srv/http/www  $BACKUP_FOLDER 2> $ERROR_FILE
 
-# Si une erreur est survenue lors de la sauvegarde
+# If an error occurred during the file-copying process
 if [ -s $ERROR_FILE ]; then
     logger $ERROR
     exit 0
 fi
 
-logger " -> Compression des répertoires"
+logger " -> Compressing files"
 tar --warning=none -czPf $ARCHIVE $BACKUP_FOLDER 2> $ERROR_FILE
 
-# Si une erreur est survenue lors de la compression
+# If an error occurred during compression
 if [ -s $ERROR_FILE ]; then
     logger $ERROR
     exit 0
 fi
 
-logger " -> Chiffrement du backup"
+logger " -> Encrypting backup"
 gpg --yes --batch --no-tty --passphrase-file=./.gpg-passwd --encrypt $ARCHIVE
 
-logger " -> Suppression de l'archive"
 rm -rf $ARCHIVE
 
-# Upload de l'archive chiffrée et de la signature numérique
+# Upload the encrypted archive
 uploadToMega() {
     megaput --no-ask-password --no-progress --path $REMOTE_FOLDER $ARCHIVE.gpg 2> $ERROR_FILE
 }
 
-# Essaye d'uploader la sauvegarde ( 5 tentatives maximum )
-# Plusieurs tentatives permet d'éviter avec un peu de chance les erreurs du type :
+# Try to upload the backup (up to 5 attempts)
+# Several attempts avoids errors like :
 # HTTP POST failed => status 500 : Server Too Busy
-logger " -> Upload de la sauvegarde vers un serveur distant"
+logger " -> Upload the backup to a remote server"
 uploadToMega
 
 nbAttempt=1
 
-# Tant que l'upload ne s'est pas effectué correctement, on essaye ( 4 fois max )
+# if upload was not done properly, it retries (max 4 times)
 while [ -s $ERROR_FILE ]; do
     if [ "$nbAttempt" -lt 5 ]; then
-        logger " -> Echec de l'upload... Tentative $nbAttempt"
+        logger " -> Upload failed... Attempt $nbAttempt"
         uploadToMega
 
-        # Si le fichier est vide, on arrête la boucle
+        # If the file is empty, the loop is stopped
         if [ ! -s $ERROR_FILE ]; then
             break
         fi
@@ -83,12 +82,12 @@ while [ -s $ERROR_FILE ]; do
     fi
 done
 
-logger " -> Upload effectué avec succès !"
+logger " -> Upload performed correctly"
 
-# Récupération de l'espace disque restant sur le serveur distant
+# Get the remaining disk space on the remote server
 FREE_SPACE=`megadf --no-ask-password --free --mb` > /dev/null 2>&1
 
-logger " -> Suppression des repertoires non-compressés"
+logger " -> Deleting uncompressed folder"
 rm -rf $BACKUP_FOLDER
 
 logger " -> System backup completed successfully, remaining free space on the remote server : $FREE_SPACE MiB."
