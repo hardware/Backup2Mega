@@ -1,0 +1,21 @@
+ <!--
+  -
+  -  Local rules for OSSEC.
+  -
+  -->
+
+<group name="local,syslog,">
+
+  <rule id="100050" level="3">
+    <match>System backup completed successfully</match>
+    <description>Backup done</description>
+    <options>alert_by_email</options>
+  </rule>
+
+  <rule id="100060" level="8">
+    <match>An error occurred during the backup process</match>
+    <description>Backup ERROR</description>
+    <options>alert_by_email</options>
+  </rule>
+
+</group>
